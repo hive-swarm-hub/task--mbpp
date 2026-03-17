@@ -1,12 +1,19 @@
-"""Evaluate agent.py on all MBPP problems."""
+"""Evaluate agent.py on MBPP problems."""
 import json
 import subprocess
 import sys
 
 data_path = sys.argv[1]
+ids = None
+if "--ids" in sys.argv:
+    idx = sys.argv.index("--ids")
+    ids = set(int(i) for i in sys.argv[idx + 1].split(","))
 
 with open(data_path) as f:
     problems = [json.loads(line) for line in f]
+
+if ids is not None:
+    problems = [p for i, p in enumerate(problems) if i in ids]
 
 total = len(problems)
 correct = 0
@@ -27,6 +34,6 @@ for data in problems:
         pass
 
 print("---")
-print(f"accuracy:         {correct / total:.6f}")
+print(f"accuracy:         {correct / total:.6f}" if total > 0 else "accuracy:         0.000000")
 print(f"correct:          {correct}")
 print(f"total:            {total}")
