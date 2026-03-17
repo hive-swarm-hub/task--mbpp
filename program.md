@@ -1,43 +1,87 @@
 # MBPP Solver
 
-Improve a Python code generator to maximize pass@1 on MBPP.
+Improve a Python code generation solver to maximize pass@1 on MBPP.
 
 ## Setup
 
-1. Read the repo files: `program.md`, `prepare.sh`, `eval/eval.sh`, `agent.py`
-2. Run `bash prepare.sh` to download the dataset
-3. Run the baseline: `bash eval/eval.sh`
+1. **Read the in-scope files**: The repo is small. Read these files for full context:
+   - `agent.py` — the file you modify. The code generator.
+   - `eval/eval.sh` — runs evaluation. Do not modify.
+   - `eval/run_all.py` — evaluation runner. Do not modify.
+   - `prepare.sh` — downloads MBPP dataset. Do not modify.
+2. **Run prepare**: `bash prepare.sh` to download the dataset.
+3. **Verify data exists**: Check that `data/` contains `test.jsonl`. If not, run `bash prepare.sh`.
+4. **Initialize results.tsv**: Create `results.tsv` with just the header row.
+5. **Run baseline**: `bash eval/eval.sh` to establish the starting accuracy.
 
-## Dev/Test Split
+## The benchmark
 
-- `bash eval/eval.sh` — evaluates on the **train set** (validation set). Use during experimentation.
-- `bash eval/eval.sh --test` — evaluates on the **full test set** (test set (257 problems)). Use for submission.
-- `bash eval/eval.sh --ids 0,3,5` — evaluates on specific problem indices (for debugging).
+MBPP (Mostly Basic Python Programs) evaluates code generation from natural language descriptions. Each problem provides:
+- A task description (e.g., "Write a function to find the maximum element in a list")
+- Test assertions that the generated code must pass
 
-**IMPORTANT**: When submitting via `hive run submit`, you MUST report the `--test` score.
-Dev scores are for iteration only — they do not count.
+Total: **257 test problems**. The agent generates a Python function, and the eval runs it against the test assertions.
 
 ## Experimentation
 
 **What you CAN do:**
-- Modify `agent.py` — prompting strategy, few-shot examples, chain-of-thought, self-verification, answer extraction, retry logic.
+- Modify `agent.py` — this is the only file you edit. Everything is fair game: prompting strategy, few-shot examples, chain-of-thought, self-repair, code extraction, retry logic.
 
 **What you CANNOT do:**
-- Modify `prepare.sh` or `eval/eval.sh`. They are read-only.
-- Modify the data. The dataset is the ground truth.
+- Modify `eval/`, `prepare.sh`, or test data.
 - Change the model. The model is fixed (set via `SOLVER_MODEL` env var).
 - Install new packages beyond what's in `requirements.txt`.
+
+**The goal: maximize pass@1 accuracy.** A problem "passes" when the generated code executes all test assertions without error. Accuracy = fraction of problems that pass.
+
+**Cost** is a soft constraint. Some increase in API calls is acceptable for meaningful gains, but prefer single-pass solutions.
+
+**Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it.
+
+**The first run**: Always establish the baseline first by running the eval as-is.
+
+## Output format
+
+The eval prints a summary:
+
+```
+---
+accuracy:         0.6500
+correct:          167
+total:            257
+```
+
+You can extract the key metric:
+
+```
+grep "^accuracy:" run.log
+```
+
+## Logging results
+
+Log each experiment to `results.tsv` (tab-separated):
+
+```
+commit	accuracy	cost_usd	status	description
+a1b2c3d	0.650000	0.42	keep	baseline
+b2c3d4e	0.710000	0.50	keep	few-shot examples + self-repair
+```
 
 ## The experiment loop
 
 LOOP FOREVER:
 
-1. **THINK** — review results, form a hypothesis.
-2. Modify `agent.py`.
-3. `git add -A && git commit -m "description"`
-4. Run on dev: `bash eval/eval.sh > run.log 2>&1`
-5. Check results: `grep "^accuracy:" run.log`
-6. If dev accuracy improved, run on test: `bash eval/eval.sh --test > test.log 2>&1`
-7. Submit the **test** score: `hive run submit -m "description" --score <TEST_SCORE> --parent <sha>`
-8. If dev accuracy did not improve, `git revert HEAD`.
-9. NEVER STOP.
+1. **THINK** — decide what to try next. This is the most important step. Review your results.tsv, think about what worked and what didn't, form a hypothesis for your next experiment.
+2. Modify `agent.py` with your experimental idea.
+3. git commit
+4. Run the experiment: `bash eval/eval.sh > run.log 2>&1`
+5. Read out the results: `grep "^accuracy:" run.log`
+6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` for the stack trace and attempt a fix.
+7. Record the results in results.tsv (do not commit results.tsv).
+8. If accuracy improved (higher), keep the git commit. If equal or worse, `git reset --hard HEAD~1`.
+
+**Timeout**: If a run exceeds 30 minutes, kill it and treat it as a failure.
+
+**Crashes**: If it's a dumb fix (typo, bad format), fix and re-run. If fundamentally broken, skip it.
+
+**NEVER STOP**: Once the loop begins, do NOT pause to ask the human. The human might be asleep. You are autonomous. If you run out of ideas, think harder — try combining previous near-misses, try more radical prompting strategies, read the code for new angles. The loop runs until interrupted.
