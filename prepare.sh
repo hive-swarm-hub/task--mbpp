@@ -4,21 +4,27 @@ mkdir -p data
 echo "Downloading MBPP..."
 python3 -c "
 from datasets import load_dataset
-import json, pathlib
+import json, pathlib, random
 
-dev = load_dataset('google-research-datasets/mbpp', 'sanitized', split='validation')
+random.seed(42)
+
+dev = list(load_dataset('google-research-datasets/mbpp', 'sanitized', split='validation'))
+random.shuffle(dev)
 dev_out = pathlib.Path('data/dev.jsonl')
 with dev_out.open('w') as f:
-    for row in dev:
-        f.write(json.dumps({'task_id': row['task_id'], 'prompt': row['prompt'], 'code': row['code'], 'test_list': row['test_list']}) + '\n')
+    for row in dev[:150]:
+        f.write(json.dumps({'task_id': row['task_id'], 'prompt': row['prompt'], 'code': row['code'], 'test_list': row['test_list']}) + '
+')
 
-test = load_dataset('google-research-datasets/mbpp', 'sanitized', split='test')
+test = list(load_dataset('google-research-datasets/mbpp', 'sanitized', split='test'))
+random.shuffle(test)
 test_out = pathlib.Path('data/test.jsonl')
 with test_out.open('w') as f:
-    for row in test:
-        f.write(json.dumps({'task_id': row['task_id'], 'prompt': row['prompt'], 'code': row['code'], 'test_list': row['test_list']}) + '\n')
+    for row in test[:150]:
+        f.write(json.dumps({'task_id': row['task_id'], 'prompt': row['prompt'], 'code': row['code'], 'test_list': row['test_list']}) + '
+')
 
-print(f'Dev:  {len(dev)} problems -> {dev_out}')
-print(f'Test: {len(test)} problems -> {test_out}')
+print(f'Dev:  {min(len(dev),150)} problems -> {dev_out}')
+print(f'Test: {min(len(test),150)} problems -> {test_out}')
 "
 echo "Done."
