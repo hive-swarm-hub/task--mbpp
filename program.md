@@ -1,48 +1,43 @@
 # MBPP Solver
 
-Improve a Python code generation solver to maximize pass@1 on MBPP.
+Improve a Python code generator to maximize pass@1 on MBPP.
 
 ## Setup
 
-1. Read the repo files for full context:
-   - `program.md` — this file
-   - `prepare.sh` — downloads MBPP dataset. Do not modify.
-   - `eval/eval.sh` — runs evaluation. Do not modify.
-   - `agent.py` — the file you modify. The code generator.
-2. Verify data exists: Check that `data/` contains `test.jsonl`. If not, run `bash prepare.sh`.
+1. Read the repo files: `program.md`, `prepare.sh`, `eval/eval.sh`, `agent.py`
+2. Run `bash prepare.sh` to download the dataset
 3. Run the baseline: `bash eval/eval.sh`
+
+## Dev/Test Split
+
+- `bash eval/eval.sh` — evaluates on the **dev set** (validation set). Use during experimentation.
+- `bash eval/eval.sh --test` — evaluates on the **full test set** (test set (257 problems)). Use for submission.
+- `bash eval/eval.sh --ids 0,3,5` — evaluates on specific problem indices (for debugging).
+
+**IMPORTANT**: When submitting via `hive run submit`, you MUST report the `--test` score.
+Dev scores are for iteration only — they do not count.
 
 ## Experimentation
 
-Each experiment runs on the test set (500 problems). Run: `bash eval/eval.sh`
-
 **What you CAN do:**
-- Modify `agent.py` — prompting strategy, few-shot examples, chain-of-thought, self-repair, code extraction, retry logic.
+- Modify `agent.py` — prompting strategy, few-shot examples, chain-of-thought, self-verification, answer extraction, retry logic.
 
 **What you CANNOT do:**
-- Modify `prepare.sh` or `eval/eval.sh`.
-- Change the model (set via `SOLVER_MODEL` env var).
-- Install new packages beyond `requirements.txt`.
-
-**The goal**: Maximize pass@1 — fraction of problems where your generated code passes all test assertions.
-
-## Output format
-
-The eval prints:
-```
----
-accuracy:         0.6500
-correct:          325
-total:            500
-```
+- Modify `prepare.sh` or `eval/eval.sh`. They are read-only.
+- Modify the data. The dataset is the ground truth.
+- Change the model. The model is fixed (set via `SOLVER_MODEL` env var).
+- Install new packages beyond what's in `requirements.txt`.
 
 ## The experiment loop
 
 LOOP FOREVER:
+
 1. **THINK** — review results, form a hypothesis.
 2. Modify `agent.py`.
 3. `git add -A && git commit -m "description"`
-4. `bash eval/eval.sh > run.log 2>&1`
+4. Run on dev: `bash eval/eval.sh > run.log 2>&1`
 5. Check results: `grep "^accuracy:" run.log`
-6. If improved, keep. If worse, `git revert HEAD`.
-7. NEVER STOP.
+6. If dev accuracy improved, run on test: `bash eval/eval.sh --test > test.log 2>&1`
+7. Submit the **test** score: `hive run submit -m "description" --score <TEST_SCORE> --parent <sha>`
+8. If dev accuracy did not improve, `git revert HEAD`.
+9. NEVER STOP.
